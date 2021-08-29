@@ -1,0 +1,167 @@
+from bs4 import BeautifulSoup
+import time
+import sqlite3
+import requests
+import datetime
+import pandas as pd
+import re
+
+class get_todata:
+    def __init__(self,db_dir):
+        self.db_dir = db_dir
+
+    def get_brand(self,code):
+        res = requests.get(f"https://finance.yahoo.co.jp/quote/{code}.T/history")
+        soup = BeautifulSoup(res.text, 'html.parser')
+        judge = True
+        s =0
+        try:
+            if soup.find(class_ = "qyVyvkoT _3jFR0tIz").text == "時系列情報がありません":
+                #print(1)
+                return None
+        except AttributeError:
+            s =1
+
+
+        i=0
+        while judge or i ==10:
+                #print(judge,i)
+                try:
+
+                    Today = soup.find_all(class_="UV2ePijJ _1whprju-")[i].text
+                    #print(Today)
+                    year = int(Today[:4])
+                    #print(year)
+                    month = Today[5:7]
+                    month = int(re.sub(r'\D', '', month))# 元の文字列から数字以外を削除＝数字を抽出
+                    day = Today[-3:]
+                    day = int(re.sub(r'\D', '', day))
+
+                    today = Today.replace('年', '-')
+                    today = today.replace('月', '-')
+                    today = today.replace('日', '')
+                    today = today.replace('0', '')
+
+                    #print((year,month,day))
+                    date = str(datetime.date.today())
+                    try:
+                        data = datetime.date(year,month,day)
+                        yesterday = str(data - datetime.timedelta(days=1))
+                        data = str(data)
+                    except:
+                        return None
+                    #print(44)
+                    #Data = data.replace('0','')
+                    Data = "221-8-6"
+
+                    #print(today, Data)
+                    i+=1
+
+                    if Data == today:
+                        #print(111)
+
+                        open = soup.find_all( class_='_3rXWJKZF')[5+6*(i-1)].text
+                        open= open.replace(",","")
+                        if open[0].isdigit() == True:
+                            high = soup.find_all( class_='_3rXWJKZF')[6+6*(i-1)].text
+                            high = high.replace(",","")
+                            low = soup.find_all( class_='_3rXWJKZF')[7+6*(i-1)].text
+                            low = low.replace(",","")
+                            close = soup.find_all( class_='_3rXWJKZF')[8+6*(i-1)].text
+                            close = float(close.replace(",",""))
+                            volume = soup.find_all( class_='_3rXWJKZF')[9+6*(i-1)].text
+                            volume = volume.replace(",","")
+                            #print(code,data,open,high,low,close,volume)
+                            #close1 = soup.find_all(class_='_3rXWJKZF')[8 + 6 * i].text
+                            #close1 = float(close1.replace(",", ""))
+                            #change = soup.find_all(class_='_3rXWJKZF')[10 + 6 * (i - 1)].text
+                            #change = float(change.replace(",", ""))
+                            #change1 = soup.find_all(class_='_3rXWJKZF')[10 + 6 * i].text
+                            #change1 = float(change1.replace(",", ""))
+                            #print(code, data, close, close1, change, change1)
+                            before =0
+                            after =0
+                        else:
+                            open = soup.find_all(class_='_3rXWJKZF')[6 + 6 * (i - 1)].text
+                            open = open.replace(",", "")
+                            high = soup.find_all(class_='_3rXWJKZF')[7 + 6 * (i - 1)].text
+                            high = high.replace(",", "")
+                            low = soup.find_all(class_='_3rXWJKZF')[8 + 6 * (i - 1)].text
+                            low = low.replace(",", "")
+                            close = soup.find_all(class_='_3rXWJKZF')[9 + 6 * (i - 1)].text
+                            close = float(close.replace(",", ""))
+                            volume = soup.find_all(class_='_3rXWJKZF')[10 + 6 * (i - 1)].text
+                            volume = volume.replace(",", "")
+                            # print(code,data,open,high,low,close,volume)
+                            ba = soup.find_all(class_='_3rXWJKZF')[5 + 6 * (i - 1)].text
+                            af = 0
+                            while ba[af] != "→":
+                                af += 1
+                            af += 1
+                            after = ba[af:]
+                            af = 0
+                            while after[af] != "株":
+                                af += 1
+                            after = after[:af]
+                            af = 0
+
+                            while ba[af] != "：":
+                                af += 1
+                            af += 1
+                            before = ba[af:]
+                            af = 0
+                            while before[af] != "株":
+                                af += 1
+                            before = before[:af]
+
+
+                        #print(code,data,open,high,low,close,volume,before,after,yesterday)
+
+
+                        return code,data,open,high,low,close,volume,before,after,yesterday
+                    else:
+                        s = 0
+
+                except IndexError:
+                    return None
+
+    def get_brands_code(self):
+        #conn = sqlite3.connect(self.db_dir)
+        #cur = conn.cursor()
+
+        # dbをpandasで読み出す。
+        #df = pd.read_sql('SELECT * FROM brand', conn)
+
+        #cur.close()
+        #conn.close()
+        #print(type(df))
+
+
+        for i in range(1301,9999):
+            i = int(i)
+            #print(i)
+            conn = sqlite3.connect(self.db_dir)
+            if self.get_brand(i) != None:
+                brandata = (self.get_brand(i)[:7],)
+                print(brandata)
+                with conn:
+                    sql = 'INSERT INTO raw_prices(code,date,open,high,low,close,volume) ' \
+                          'VALUES(?,?,?,?,?,?,?)'
+                    conn.executemany(sql, brandata)
+
+                with conn:
+                    sql = 'INSERT INTO prices1(code,date,open,high,low,close,volume) ' \
+                          'VALUES(?,?,?,?,?,?,?)'
+                    conn.executemany(sql, brandata)
+
+            if self.get_brand(i):
+                brandata = ((self.get_brand(i)[0:1] +self.get_brand(i)[9:]+ self.get_brand(i)[7:9]),)
+                #print(brandata)
+                if brandata[0][2] != 0 and brandata[0][3] != 0:
+                    with conn:
+                        sql = """
+                        INSERT INTO 
+                        divide_union_data1 (code, date_of_right_allotment,before, after)
+                        VALUES(?,?,?,?)
+                        """
+                        conn.executemany(sql, brandata)
