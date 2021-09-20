@@ -1,0 +1,15 @@
+from pydrive.auth import GoogleAuth
+from pydrive.drive import GoogleDrive
+
+gauth = GoogleAuth()
+gauth.LocalWebserverAuth()
+
+drive = GoogleDrive(gauth)
+
+ID = "1kg8popgHlSkiOZu7Hv0dAj7QXWM1Ud42"
+
+file_name = "date" + "_stock"
+
+f = drive.CreateFile({"title": "test.csv", "parents": [{"id": ID}]})
+f.SetContentFile('test.csv')
+f.Upload()
