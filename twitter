@@ -1,0 +1,189 @@
+import tweepy
+import datetime
+import schedule
+import time
+import random
+
+class twitter:
+    def __init__(self):
+        self.Consumer_key = 'A3YPiItBuAdHTLGf0E9oR3NCx'
+        self.Consumer_secret = 'FzCPfnEAxMQpuVa7v9SJIFTDomTEK8TGw1gOFFfKD7aEbqXZpa'
+        self.Access_token = '1261668356072988672-1qOV8UtLgoRyMipWZRX4N9TAF5hTg7'
+        self.Access_secret = 'Kpz3zPHEZ1q594HQF6FvIqyWgUtOQgrIJ6khEW8vj0IpF'
+
+
+    def follow(self):
+
+        #認証
+        auth = tweepy.OAuthHandler(self.Consumer_key, self.Consumer_secret)
+        auth.set_access_token(self.Access_token, self.Access_secret)
+        api = tweepy.API(auth)
+
+        userids = ["YukioFPS","Shirayuki_Reid","kyam1_","ArisakaaaT","darumaisgod","imsqla","SuperSalaryman_"]
+
+
+        try:
+            today = datetime.date.today().day
+            now = datetime.datetime.now().hour
+
+            start = int(now *100/6)
+            i = 0
+            #s = 4 + today % 10
+            userid = userids[today % 7]
+
+            followers_id = api.followers_ids(userid)
+            for follower in followers_id:
+                if i>= start:
+                    try:
+                        username = api.get_user(follower).name
+                        print("フォローするユーザー名", username)
+                        api.create_friendship(follower)
+
+                    except Exception as e:
+                        e_msg = e.args[0][0]['code']
+                        # api制限に引っかかった場合（エラーコード161）はループ終了
+                        if e_msg == 161:
+                            print("aa")
+                            break
+                        # それ以外の場合はエラーメッセージを表示
+                        else:
+                            print(e.args)
+                i += 1
+        except Exception as e:
+            print(f'{k}のAPI操作でエラーが発生しました')
+            print(e.args)
+
+    def followeach(self):
+        auth = tweepy.OAuthHandler(self.Consumer_key, self.Consumer_secret)
+        auth.set_access_token(self.Access_token, self.Access_secret)
+        api = tweepy.API(auth)
+
+        # 自分のuserid
+        userid = "adAPziS8IimHL2z"
+        try:
+            # 自分のアカウントのフォロワーをすべて取得する
+            followers_id = api.followers_ids(userid)
+
+            # 自分のアカウントのフォローをすべて取得する
+            following_id = api.friends_ids(userid)
+
+
+            # 辞書に登録されているユーザーを1人ずつフォロワーリストに追
+
+            # API制限などのカウント用変数を定義
+            api_limit = 0
+            unfollow_user = 0
+            follow_user = 0
+
+            # フォローしているのにフォロワーにいないユーザーのフォローを解除する
+            for following in following_id:
+                if following not in followers_id and api_limit < 40:
+                    userfollowers = api.get_user(following).followers_count
+
+                    # フォロワー数が10000人以下で自分をフォローしていないユーザーを除外する
+                    if userfollowers < 10020:
+                        username = api.get_user(following).name
+                        print("リムーブするユーザー名", username)
+                        print("フォロワー数", userfollowers)
+
+                        # フォローを外す
+                        api.destroy_friendship(following)
+                        api_limit += 1
+                        unfollow_user += 1
+
+            # フォローを返していないユーザーにフォローを返す
+            for follower in followers_id:
+                if follower not in following_id and api_limit < 40:
+                    try:
+                        username = api.get_user(follower).name
+                        print("フォローするユーザー名", username)
+                        api.create_friendship(follower)
+                        api_limit += 1
+                        follow_user += 1
+
+                    except Exception as e:
+                        e_msg = e.args[0][0]['code']
+                        # api制限に引っかかった場合（エラーコード161）はループ終了
+                        if e_msg == 161:
+                            break
+                        # それ以外の場合はエラーメッセージを表示
+                        else:
+                            print(e.args)
+
+            print(f'リムったユーザーは{unfollow_user}人です')
+            print(f'フォローしたユーザーは{follow_user}人です')
+
+        except Exception as e:
+            print(f'{k}のAPI操作でエラーが発生しました')
+            print(e.args)
+
+    # キーワードで検索
+    def log(self,user_name, count):
+        auth = tweepy.OAuthHandler(self.Consumer_key, self.Consumer_secret)
+        auth.set_access_token(self.Access_token, self.Access_secret)
+        api = tweepy.API(auth)
+
+        result_url = []
+        for i in range(0, 2):
+            results = api.user_timeline(user_id=user_name, count=count)
+            for result in results[1:]:
+                if 'media' in result.entities:
+                    judg = 'RT @' in result.text
+                    if judg == False:
+                        for media in result.extended_entities['media']:
+                            id = result.id
+                            try:
+                                api.create_favorite(id)
+                            except:
+                                return 0
+                    return 0
+        return result_url
+
+    def start(self):
+        auth = tweepy.OAuthHandler(self.Consumer_key, self.Consumer_secret)
+        auth.set_access_token(self.Access_token, self.Access_secret)
+        api = tweepy.API(auth)
+
+        i = 0
+        count = 10
+        userid = "adAPziS8IimHL2z"
+
+        followers_id = api.followers_ids(userid)
+        following_id = api.friends_ids(userid)
+
+        for user_name in following_id:
+            self.log(user_name, count)
+
+        for user_name in followers_id:
+            self.log(user_name, count)
+
+        influ_id = "imsqla"
+        followers_id = api.followers_ids(influ_id)
+
+        for user_name in followers_id:
+            rand = random.randint(0, 20)
+            if rand == 2:
+                # log(user_name, count)
+                i += 1
+            if i == 20:
+                break
+
+
+def main():
+    # 実行する関数を定義
+    # schedule.毎 引数.単位.do(実行関数) な感じ
+    a = twitter()
+    schedule.every(2).hours.do(a.follow)
+    schedule.every(2).days.do(a.followeach)
+    schedule.every(1).days.do(a.start)
+
+
+    while True:
+        # 定義した schedule を実行しつづけます。
+        schedule.run_pending()
+        # とりあえず 1 秒にしてありますが、実行間隔次第ではもっと長くしても良さそうです
+        time.sleep(3600)
+
+
+if __name__ == '__main__':
+    main()
