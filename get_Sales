@@ -1,0 +1,257 @@
+from bs4 import BeautifulSoup
+import time
+import sqlite3
+import requests
+import datetime
+import pandas as pd
+import re
+import numpy as np
+import sys
+import csv
+from pydrive.auth import GoogleAuth
+from pydrive.drive import GoogleDrive
+
+class get_sales:
+    def __init__(self,db_dir):
+        self.db_dir = db_dir
+
+    def make_list(self, table, code,switch):
+        data_list = []
+        for tab in table:
+            # print(111,(str(tab)))
+
+            number = re.findall(r'<td>(.+)</td>|class="mizu2">(.+)</td>', str(tab))  # <td> </td>で囲まれている部分を抽出
+            for i, das in enumerate(number):
+                for da in das:
+                    if da == "－":
+                        da = '0'
+                    da = re.sub(",", "", da)
+                    try:
+                        da = float(da)
+                    except ValueError:
+                        continue
+                    number[i] = da
+
+            number = [s for s in number if isinstance(s, float)]
+            # print(number)
+
+            date = re.findall(r'</span>(.+)</th>', str(tab))
+            for i, da in enumerate(date):
+                da = re.sub("\xa0", "", da)
+                date[i] = da
+                # print(da)
+            #print(number,date)
+
+
+            if len(number) == 0:
+                continue
+
+            elif switch == "CF" and date[0][-1] == "*":
+                for i, dat in enumerate(date):
+                    if dat[-1] == "*":
+                        date[i] = date[i][:-1]
+
+
+            elif len(number) % len(date) != 0:
+                #print(number,date[0][-1])
+                tmp_list = []
+
+                if date[0][-1] == "*":
+                    for i, dat in enumerate(date):
+                        if dat[-1] == "*":
+                            date[i] = date[i][:-1]
+                            #print(date)
+                            tmp_list.append(i + 1)
+
+                    for i in tmp_list:
+                        try:
+                            number.pop(len(number) // len(date) * i)
+                        except IndexError as I:
+                            print(I,code)
+
+
+                if len(number) % len(date) != 0:
+                    if number[-1] == 0:
+                        number.pop(-1)
+                    else:
+                        print("日付の数と売上高などの数が合いません")
+                        print(number)
+                        return []
+
+            ax = len(number) // len(date)
+            # print(date)
+            for i, num in enumerate(number):
+                # print(number[i])
+                if i % ax == 0:
+                    data_list.append(code)
+                    try:
+                        data_list.append(date[i // ax])
+                    except IndexError as I:
+                        print(I,code)
+                        return  []
+                data_list.append(number[i])
+
+            data_list = np.array(data_list).reshape(-1, ax + 2)
+
+            if switch == "finance":
+                data_list = data_list[:-1]
+
+            #print(data_list)
+            if number:
+                break
+        return data_list
+
+
+    def quarter_sales(self,code):
+        res = requests.get(f"https://kabutan.jp/stock/finance?code={code}#shihankiruikei_name")
+        soup = BeautifulSoup(res.text, 'html.parser')
+        #print(soup)
+        table = soup.find_all(class_="fin_q_t0_d fin_q_t1_d")#３ヶ月決算の場所の特定
+        #print(table)
+        table = str(table)
+
+        number = re.findall(r'<td>(.+)</td>', table)# <td> </td>で囲まれている部分を抽出
+        #print(number)
+        for i,da in enumerate(number):
+            if da == "－":
+                da = '0'
+            da = re.sub(",", "", da)
+            #print("*")
+            try:
+                da = float(da)
+            except ValueError:
+                continue
+            number[i] = da
+
+        number = [s for s in number if isinstance(s,float)]
+        #print(number)
+
+        date = re.findall(r'</span>(.+)</th>',table)
+        for i,da in enumerate(date):
+            da = re.sub("\xa0", "", da)
+            date[i] = da
+            #print(da)
+        #print(date)
+
+        #print(len(number),len(date))
+
+        data_list = []
+        tmp_list = []
+
+        for i, dat in enumerate(date):
+            if dat[-1] == "*":
+                #print("yes")
+                date[i] = dat[:-1]
+
+        if len(number) % len(date) != 0:
+            if number [-1] == 0:
+                number.pop(-1)
+            else:
+                print(code,"日付の数と売上高などの数が合いません")
+                print(number)
+                return []
+
+        else:
+            ax = len(number) // len(date)
+            for i,num in enumerate(number):
+                #print(number[i])
+                #print(i,ax)
+                if i % ax == 0:
+                    try:  #上場廃止になった銘柄をある程度キャッチ
+                        month = int(date[i//ax][3:5])
+                    except ValueError:
+                        return []
+
+                    #print((month-1)//3)
+                    data_list.append(code)
+                    if (month-1)//3 == 0:
+                        data_list.append(4)
+                    else:
+                        data_list.append((month-1)//3)
+                    data_list.append(date[i // ax])
+                data_list.append(number[i])
+
+            data_list = np.array(data_list).reshape(-1,ax+3)
+        return data_list
+
+    def cash_flow(self,code):
+        res = requests.get(f"https://kabutan.jp/stock/finance?code={code}#shihankiruikei_name")
+        soup = BeautifulSoup(res.text, 'html.parser')
+        # print(soup)
+        table = soup.find(class_="cashflow_title")
+        #print(table)
+        table =table.next_siblings
+        table = list(table)[:10]
+
+        #print(table[:10])
+        return self.make_list(table,code,"CF")
+
+    def zaimu(self,code):
+        res = requests.get(f"https://kabutan.jp/stock/finance?code={code}#shihankiruikei_name")
+        soup = BeautifulSoup(res.text, 'html.parser')
+        # print(soup)
+        table = soup.find(attrs={ 'name': 'zaimu_name' })
+        #print(table)
+        table =table.parent.next_siblings
+        table = list(table)[:100]
+
+
+        return self.make_list(table,code,"finance")
+
+        #f = open('out2.csv', 'w')
+
+        #csv.writer(f).writerows(data_list)
+
+    def write_list(self,dataes,texts):
+
+        f = open(f'/Users/tatsumiryou/PycharmProjects/youtube/scv_data/{texts}.csv', 'w')
+        writer = csv.writer(f, lineterminator='\n')
+        for data in dataes:
+            #print(data)
+            for da in data:
+                writer.writerow(da)
+
+        f.close()
+        gauth = GoogleAuth()
+        gauth.LocalWebserverAuth()
+
+        drive = GoogleDrive(gauth)  # この辺は接続と認証
+
+        ID = "1kg8popgHlSkiOZu7Hv0dAj7QXWM1Ud42"
+
+        file_name = "date" + "_stock"
+
+        f = drive.CreateFile({"title": texts, "parents": [{"id": ID}]})
+        f.SetContentFile(f'/Users/tatsumiryou/PycharmProjects/youtube/scv_data/{texts}.csv')
+        f.Upload()
+
+
+    def sales_data(self):
+        sales_list = []
+        CF_list = []
+        finance_list = []
+        for i in range(1301,9999):
+            #print(i)
+            try:
+                sales_list.append(self.quarter_sales(i))
+            except ZeroDivisionError:
+                continue
+            try:
+                CF_list.append(self.cash_flow(i))
+                finance_list.append(self.zaimu(i))
+            except AttributeError:
+                continue
+
+        self.write_list(sales_list,"quarter_sales")
+        self.write_list(CF_list,"cashflow")
+        self.write_list(finance_list,"finance")
+
+
+
+
+
+
+
+if __name__ == '__main__':
+    a = get_sales(1)
+    a.sales_data()
