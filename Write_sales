@@ -1,0 +1,142 @@
+import csv
+import glob
+import datetime
+import os
+import sqlite3
+from pydrive.auth import GoogleAuth
+from pydrive.drive import GoogleDrive
+
+
+class Write_Sales:
+    def __init__(self,csv_file_dir,db_file_name):
+        self.csv_file_dir = csv_file_dir
+        self.db_file_name= db_file_name
+
+    def quarter_from_csv_file(self):
+        ans = []
+        with open(self.csv_file_dir + "quarter_sales.csv") as f:
+            reader = csv.reader(f)
+            #print(f.read())
+            for row in reader:
+                code = int(row[0])
+                season = int(row[1])
+                d = datetime.datetime.strptime("20" + row[2], '%Y.%m-%d').date() #日付
+                o = float(row[3])
+                h = float(row[4])
+                l = float(row[5])  #
+                c = float(row[6])  #
+                v = float(row[7])
+                r = float(row[8])
+                tmp = [code, season,d, o, h, l, c, v,r]
+                ans.append(tmp)
+        return ans
+
+    def all_csv_file_to_db(self, data_list,name):
+        #print(111,price_generator)
+        conn = sqlite3.connect(self.db_file_name)
+        #print(price_generator)
+        colum_list = ["code,season,date,sales,operating_profit,ordinal_profit,final_profit,EPS,profit_rate","code,date,operating_profit,free_CF,operating_CF,invest_CF,finance_CF,stock_cash,cash_rate","code,date,BPS,capital_ratio,assets,equity_asset,surpuls,DE_ratio"]
+        if name == "quarter_sales":
+            colum = colum_list[0]
+            val = "?,?,?,?,?,?,?,?,?"
+        elif name == "cash_flow":
+            colum = colum_list[1]
+            val = "?,?,?,?,?,?,?,?,?"
+        else:
+            colum = colum_list[2]
+            val = "?,?,?,?,?,?,?,?"
+
+        for data in data_list:
+            data = tuple(data)
+            print(data)
+            with conn:
+                sql = f"""
+                INSERT INTO {name}({colum})
+                VALUES({val})
+                """
+                try:
+                    conn.execute(sql, data)
+                except sqlite3.IntegrityError:
+                    print("passed")
+                    pass
+
+
+    def CF_from_csv_file(self):
+        with open(self.csv_file_dir + "cashflow.csv") as f:
+            reader = csv.reader(f)
+            # print(f.read())
+            for row in reader:
+                code = int(row[0])
+                #season = int(row[1])
+                #print(row)
+                d = datetime.datetime.strptime(row[1], '%Y.%m').date()  # 日付
+                o = float(row[2])
+                h = float(row[3])
+                l = float(row[4])  #
+                c = float(row[5])  #
+                v = float(row[6])
+                r = float(row[7])
+                ra = float(row[8])
+                #print(code, d, o, h, l, c, v, r,ra)
+                yield code, d, o, h, l, c, v, r,ra
+
+    def finance_from_csv_file(self):
+
+        with open(self.csv_file_dir + "finance.csv") as f:
+            reader = csv.reader(f)
+            #print(f.read())
+
+            for row in reader:
+                code = int(row[0])
+                #season = int(row[1])
+                #print(row)
+                try:
+                    d = datetime.datetime.strptime(row[1], '%Y.%m').date()  # 日付
+                except ValueError:
+                    d = datetime.datetime.strptime(row[1][:-1], '%Y.%m').date()
+                o = float(row[2])
+                h = float(row[3])
+                l = float(row[4])  #
+                c = float(row[5])  #
+                v = float(row[6])
+                r = float(row[7])
+                #print(code, d, o, h, l, c, v, r)
+                yield code, d, o, h, l, c, v, r
+
+    def wr_Sales(self):
+        gauth = GoogleAuth()
+        gauth.LocalWebserverAuth()
+
+        drive = GoogleDrive(gauth)
+
+        ID = "1kg8popgHlSkiOZu7Hv0dAj7QXWM1Ud42"
+
+        for name in ["quarter_sales","finance","cashflow"]:
+            file_name = name
+            print(file_name)
+            file_id = drive.ListFile({'q': f'title = "{file_name}"'}).GetList()[0]['id']  # ファイル名からid取得
+
+            f = drive.CreateFile({'id': file_id})
+            f.GetContentFile(f'/Users/tatsumiryou/PycharmProjects/youtube/{file_name}.csv')
+        conn = sqlite3.connect(self.db_file_name)
+        with conn:
+            sql = 'DELETE FROM quarter_sales'
+            #conn.execute(sql)
+        self.all_csv_file_to_db(self.quarter_from_csv_file(),"quarter_sales")
+
+        with conn:
+            sql = 'DELETE FROM finance'
+            #conn.execute(sql)
+        self.all_csv_file_to_db(self.finance_from_csv_file(), "finance")
+
+        with conn:
+            sql = 'DELETE FROM cash_flow'
+            #conn.execute(sql)
+        self.all_csv_file_to_db(self.CF_from_csv_file(),"cash_flow")
+
+
+print(3)
+a = Write_Sales("/Users/tatsumiryou/PycharmProjects/youtube/",'/Users/tatsumiryou/sqlite.db')
+#g = a.all_csv_file_to_db(a.quarter_from_csv_file())
+g = a.wr_Sales()
+
